@@ -132,6 +132,7 @@ public class TestTablePageStudents
 				// fetch and check against the list (all columns of record)
 				for (int i = 0; i < list.size(); i++) {
 					DataTuple orig = list.get(i);
+
 					DataTuple inPage = page.getDataTuple(i, Long.MAX_VALUE, numCols);
 					assertTrue("Tuples must be equal:\n" + orig.toString() + "\n" + inPage.toString()
 							, orig.equals(inPage));
@@ -232,7 +233,8 @@ public class TestTablePageStudents
 					}
 					if(origPasses)
 					{
-						assertTrue("The tuples should be equal.", orig.equals(inPage));
+						assertTrue("The tuples should be equal:\n" + orig.toString() + "\n" + inPage.toString(), orig.equals(inPage));
+		
 					}
 					else
 					{
@@ -749,6 +751,7 @@ public class TestTablePageStudents
 		}
 
 		// check that the record count is all right
+		
 		assertTrue("Record count is wrong.", list.size() == page.getNumRecordsOnPage());
 		
 		// check that we got at least as many tuples as we would get if every
