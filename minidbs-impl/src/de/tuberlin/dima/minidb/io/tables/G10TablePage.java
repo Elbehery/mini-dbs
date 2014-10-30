@@ -148,6 +148,15 @@ public class G10TablePage implements TablePage {
 		return readIntByteArray(binaryPage, HEADER_POS_CHUNK_OFFSET);
 	}
 	
+	public int getTombstone(int position) throws PageExpiredException {
+		
+		if (expired) throw new PageExpiredException();
+		
+		int offset = 32 + position * readIntByteArray(binaryPage, HEADER_POS_RECORD_WIDTH);
+		
+		return readIntByteArray(binaryPage, offset);
+	}
+	
 	
 
 	@Override
@@ -202,9 +211,9 @@ public class G10TablePage implements TablePage {
 		
 		
 		if (field.getBasicType().isFixLength()) {
-			
+
 			field.encodeBinary(binaryPage, currentRecordOffset);
-			currentRecordOffset += field.getNumberOfBytes();
+			currentRecordOffset += schema.getColumn(i).getDataType().getNumberOfBytes();
 			
 		} else {
 			
@@ -266,53 +275,75 @@ public class G10TablePage implements TablePage {
 			return null;
 		
 		
+		
+
 		recordOffset += 4;
 		
-		DataTuple tuple = new DataTuple(schema.getNumberOfColumns());
+		DataTuple tuple = new DataTuple(numCols);
 		DataType type;
 		DataField field;
+		int currentColumn = 0;
+		
 		
 
 		for (int i =0; i < schema.getNumberOfColumns(); i++) {
 			
-			if ((columnBitmap & 0x1) == 0) {
-				columnBitmap >>>=1;
-				continue;
-			}
-				
-			columnBitmap >>>=1;
-			
 			type = schema.getColumn(i).getDataType();
+
 			
 			
+			if ((columnBitmap & 0x1) == 0) {
 			
-			if (type.isFixLength()) {
-			
-				field = type.getFromBinary(binaryPage, recordOffset);
-			
-				recordOffset += field.getNumberOfBytes();
-			
-			} else  {
-				int start =readIntByteArray(binaryPage, recordOffset);
-				int length =readIntByteArray(binaryPage, recordOffset+4);
+				if (type.isFixLength()) {
+					recordOffset += type.getNumberOfBytes();
+					
+				} else {					
+					recordOffset += 8;
+				}
+
+			} else {
+
 				
-				if(start == 0 && length ==0) {
-					field = type.getNullValue();
-					
-				} else {
-					
+			
+			
+			
+			
+			
+			
+				if (type.isFixLength()) {
+				
+					field = type.getFromBinary(binaryPage, recordOffset);
+				
+					recordOffset += type.getNumberOfBytes();
 
-						field = type.getFromBinary(binaryPage, start, length);	
-						
-				}				
-				recordOffset += 8;
-						
-			}
-			
+					if (field.getNumberOfBytes() != type.getNumberOfBytes() ) {
 
+				
+					}
+				
+				} else  {
+					int start = readIntByteArray(binaryPage, recordOffset);
+					int length = readIntByteArray(binaryPage, recordOffset+4);
+					
+					if(start == 0 && length ==0) {
+						field = type.getNullValue();
+						
+					} else {
+						
+	
+							field = type.getFromBinary(binaryPage, start, length);	
+							
+					}				
+					recordOffset += 8;
+							
+				}
+
+				tuple.assignDataField(field, currentColumn);
+				
+				currentColumn++;
+			}	
 			
-			tuple.assignDataField(field, i);
-			
+			columnBitmap >>>=1;
 		}
 		
 
@@ -324,18 +355,85 @@ public class G10TablePage implements TablePage {
 			long columnBitmap, int numCols) throws PageTupleAccessException,
 			PageExpiredException {
 		
+		/* TODO should be optimized and not just use the normal method */
+		
 		if (expired) throw new PageExpiredException();
+		
+		if (position > readIntByteArray(binaryPage, HEADER_POS_NUMBER_RECORDS) || position < 0) 
+			throw new PageTupleAccessException(position, "index negative or larger than the number of tuple on the page");
 
-		DataTuple tuple = getDataTuple(position, columnBitmap, numCols);
+		
+		int recordOffset = readIntByteArray(binaryPage, HEADER_POS_RECORD_WIDTH) * position + 32;
+		
+		if (( readIntByteArray(binaryPage, recordOffset) & 0x1) == 1)
+			return null;
 		
 		
-		for (int i = 0; i < preds.length; i++) {
+
+		recordOffset += 4;
+	
+		
+		DataTuple tuple = new DataTuple(numCols);
+		DataType type;
+		DataField field;
+		int currentColumn = 0;
+		
+		
+
+		for (int i =0; i < schema.getNumberOfColumns(); i++) {
 			
-			if (!preds[i].evaluateWithNull(tuple.getField(preds[i].getColumnIndex())))
-				return null;
+			type = schema.getColumn(i).getDataType();
+			
+			
+			
+				if (type.isFixLength()) {
+				
+					field = type.getFromBinary(binaryPage, recordOffset);
+
+				
+					recordOffset += type.getNumberOfBytes();
+
+				
+				} else  {
+					int start = readIntByteArray(binaryPage, recordOffset);
+					int length = readIntByteArray(binaryPage, recordOffset+4);
+					
+					if(start == 0 && length ==0) {
+						field = type.getNullValue();
+						
+					} else {
+						
+	
+							field = type.getFromBinary(binaryPage, start, length);	
+							
+					}				
+					recordOffset += 8;							
+				}
+				
+				
+				
+				for(int j = 0; j < preds.length; j++) {
+					if (preds[j].getColumnIndex() == i) {						
+						if (!preds[j].evaluateWithNull(field))
+							return null;
+					}
+				}
+					
+
+					
+				if ((columnBitmap & 0x1) == 1) {
+					tuple.assignDataField(field, currentColumn);
+					
+					currentColumn++;
+				}
+				
+			
+			columnBitmap >>>=1;
 		}
 		
+
 		return tuple;
+		
 		
 	}
 
@@ -346,7 +444,7 @@ public class G10TablePage implements TablePage {
 		if (expired) throw new PageExpiredException();
 
 		
-		return new G10TupleIterator(numCols, columnBitmap);
+		return new G10TupleIterator(this, numCols, columnBitmap);
 	}
 
 	@Override
@@ -356,8 +454,7 @@ public class G10TablePage implements TablePage {
 		
 		if (expired) throw new PageExpiredException();
 
-		// TODO Auto-generated method stub
-		return null;
+		return new G10TupleIterator(this, preds, numCols, columnBitmap);
 	}
 
 	@Override
@@ -373,12 +470,7 @@ public class G10TablePage implements TablePage {
 	
 
 	public void writeIntByteArray(byte[] buffer, int offset, int value) {
-		
-	/*	System.out.println("Write : " + value);
-		for (int i = 0; i <= 3; i++) {
-			byteArray[pos+i] = (byte) (value >>> 8*i);
-		}
-		*/
+
 		
 		buffer[offset    ] = (byte) (value       );
 		buffer[offset + 1] = (byte) (value >>>  8);
@@ -388,18 +480,6 @@ public class G10TablePage implements TablePage {
 	}
 	
 	public int readIntByteArray(byte[] byteArray, int offset) {
-		
-		
-		
-	/*	for (int i = 0; i <= 3; i++) {
-			
-			System.out.println((int)(byteArray[pos+i] << 8*i));
-			value += ((byteArray[pos+i] << 8*i) );
-			
-
-		}
-		*/
-		
 		
 		int value = (byteArray[offset    ]        & 0x000000ff) |
 		         ((byteArray[offset + 1] <<  8) & 0x0000ff00) |
