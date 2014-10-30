@@ -463,8 +463,9 @@ public class G10TablePage implements TablePage {
 		
 		if (expired) throw new PageExpiredException();
 
-		// TODO Auto-generated method stub
-		return null;
+		int numCols = schema.getNumberOfColumns();
+		
+		return new G10TupleRIDIterator(this, numCols, Long.MAX_VALUE);
 	}
 	
 	

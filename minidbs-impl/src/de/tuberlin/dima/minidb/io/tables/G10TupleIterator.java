@@ -18,7 +18,7 @@ public class G10TupleIterator implements TupleIterator {
 		this.numCols = numCols;
 		this.columnBitmap = columnBitmap;
 		
-		position = 0;
+		position = -1;
 		
 	}
 	
@@ -28,7 +28,7 @@ public class G10TupleIterator implements TupleIterator {
 		this.numCols = numCols;
 		this.columnBitmap = columnBitmap;
 		this.preds = preds;
-		position = 0;
+		position = -1;
 		
 	}
 
