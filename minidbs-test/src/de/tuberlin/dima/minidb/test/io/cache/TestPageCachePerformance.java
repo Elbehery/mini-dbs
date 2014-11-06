@@ -279,9 +279,14 @@ public class TestPageCachePerformance
 		throws Exception
 	{
 		int lastSwap = 0;
+		
+	//	double startTime = System.currentTimeMillis();
 		byte[] buffer = new byte[pz.getNumberOfBytes()];
 		for (int i = 0; i < cAccesses; i++)
 		{
+		//	if (i % 50000 == 0)
+			//	System.out.println(i/50000 + " - " + (System.currentTimeMillis() - startTime)/1000);
+			
 			// swap behavior?
 			if (Math.floor(i / cAccesses * swapGetInsertRatio) > lastSwap)
 			{

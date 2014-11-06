@@ -8,6 +8,7 @@ import de.tuberlin.dima.minidb.catalogue.IndexSchema;
 import de.tuberlin.dima.minidb.catalogue.TableSchema;
 import de.tuberlin.dima.minidb.core.DataField;
 import de.tuberlin.dima.minidb.core.DataType;
+import de.tuberlin.dima.minidb.io.cache.G10PageCache;
 import de.tuberlin.dima.minidb.io.cache.PageCache;
 import de.tuberlin.dima.minidb.io.cache.PageFormatException;
 import de.tuberlin.dima.minidb.io.cache.PageSize;
@@ -52,10 +53,7 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 	@Override
 	public TablePage createTablePage(TableSchema schema, byte[] binaryPage) throws PageFormatException {
 		
-		G10TablePage page = new G10TablePage(schema, binaryPage);
-		return page;
-
-		
+		return new G10TablePage(schema, binaryPage);
 		
 	}
 
@@ -63,14 +61,15 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 	public TablePage initTablePage(TableSchema schema, byte[] binaryPage, int newPageNumber) throws PageFormatException {
 
 
-		G10TablePage page = new G10TablePage(schema, binaryPage, newPageNumber);
-		return page;
+		return new G10TablePage(schema, binaryPage, newPageNumber);
+
 		
 	}
 
 	@Override
 	public PageCache createPageCache(PageSize pageSize, int numPages) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10PageCache(pageSize, numPages);
 	}
 
 	@Override

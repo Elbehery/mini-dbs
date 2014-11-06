@@ -399,7 +399,7 @@ public class TestPageCacheStudents
 			
 			try {
 				EvictedCacheEntry e = this.underTest.addPage(newEntry, resourceId);
-				assertTrue(e != null);
+
 				// work against prefetching behavior
 				this.underTest.getPage(resourceId, newEntry.getPageNumber());
 				if(this.random.nextBoolean()) // only move some to t2
@@ -412,6 +412,7 @@ public class TestPageCacheStudents
 				buffer = e.getBinaryPage();
 				assertTrue(buffer != null);
 				pinned.remove(new EntryId(e.getResourceID(), e.getPageNumber()));
+				
 			}
 			catch (DuplicateCacheEntryException dceex) {
 				// random test generated duplicate, just ignore it 
@@ -426,6 +427,7 @@ public class TestPageCacheStudents
 		do
 		{
 			eid = new EntryId(this.random.nextInt(), this.random.nextInt());
+			System.out.println(eid.getPageNumber());
 		}
 		while(this.contained.containsKey(eid));
 		this.underTest.unpinPage(eid.getResourceId(), eid.getPageNumber());
@@ -674,8 +676,8 @@ public class TestPageCacheStudents
         {
 	        final int prime = 31;
 	        int result = 1;
-	        result = prime * result + this.id;
-	        result = prime * result + this.pagenumber;
+	        result += prime * result + this.id;
+	        result += prime * result + this.pagenumber;
 	        return result;
         }
 
