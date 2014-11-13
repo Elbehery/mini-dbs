@@ -42,7 +42,8 @@ public class G10PageCache implements PageCache {
 		bottomFrequent = new HashSet<EntryId>();
 		
 	}
-
+	
+	
 	
 	
 	@Override
@@ -78,6 +79,8 @@ public class G10PageCache implements PageCache {
 			frequent.put(id, page);
 			return page.getPage();
 		}
+		
+
 		
 		return null;
 	}
@@ -504,7 +507,7 @@ public class G10PageCache implements PageCache {
 		}
 		
 		public void unpin() {
-			this.pinned = 0;
+			this.pinned--;
 		}
 		
 		public void unpinAll() {

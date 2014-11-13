@@ -14,6 +14,7 @@ import de.tuberlin.dima.minidb.io.cache.PageFormatException;
 import de.tuberlin.dima.minidb.io.cache.PageSize;
 import de.tuberlin.dima.minidb.io.index.BTreeIndex;
 import de.tuberlin.dima.minidb.io.manager.BufferPoolManager;
+import de.tuberlin.dima.minidb.io.manager.G10BufferPoolManager;
 import de.tuberlin.dima.minidb.io.tables.G10TablePage;
 import de.tuberlin.dima.minidb.io.tables.TablePage;
 import de.tuberlin.dima.minidb.io.tables.TableResourceManager;
@@ -53,8 +54,7 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 	@Override
 	public TablePage createTablePage(TableSchema schema, byte[] binaryPage) throws PageFormatException {
 		
-		return new G10TablePage(schema, binaryPage);
-		
+		return new G10TablePage(schema, binaryPage);		
 	}
 
 	@Override
@@ -62,8 +62,6 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 
 
 		return new G10TablePage(schema, binaryPage, newPageNumber);
-
-		
 	}
 
 	@Override
@@ -74,7 +72,8 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 
 	@Override
 	public BufferPoolManager createBufferPoolManager(Config config, Logger logger) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10BufferPoolManager(config, logger);
 	}
 
 	@Override
