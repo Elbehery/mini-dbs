@@ -27,17 +27,19 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	
 	
 	
-	private int nbrIOBuffers;
 	
-	private HashMap<Integer, ResourceManager> resources;
+	
+	private HashMap<Integer, ResourceManager> resources; // 
+	
 	private HashMap<PageSize, PageCache> caches;
-	private HashMap<PageSize, LinkedList<byte[]>> buffers;
 	
-	private Config config;
+	private HashMap<PageSize, LinkedList<byte[]>> buffers;	
 	
 	private G10ReadThread readThread;
 	private G10WriteThread writeThread;
 	
+	private Config config;
+	private int nbrIOBuffers;
 	private boolean opened;
 
 	
@@ -228,6 +230,15 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				throw new IOException("Request interrupted");
 			}
 			
+			synchronized (cache) {
+				
+				page = cache.getPageAndPin(resourceId, pageNumber); // Just to hit it, should be the same as in the request wrapper
+			
+				if (page != null)
+					return page;		
+			}
+			
+			
 			return request.getWrapper();
 		}
 		
@@ -242,6 +253,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		
 			request = new G10ReadRequest(resource, readBuffer, pageNumber, resourceId, false);
 			readThread.request(request);
+			
 			
 		try {
 			synchronized (request) {
@@ -613,7 +625,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		PageCache cache = caches.get(pageSize);
 
 	
-		freeBuffer(pageSize);	
+		
 
 		EvictedCacheEntry evicted;
 		try {
@@ -625,6 +637,8 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				}
 			}
 			
+			
+			freeBuffer(pageSize);	
 			
 			CacheableData evictedPage = evicted.getWrappingPage();
 			
@@ -639,7 +653,8 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				 System.arraycopy(evictedPage.getBuffer(), 0, writeBuffer, 0, writeBuffer.length);
 	
 				 G10WriteRequest writeRequest = new G10WriteRequest(evictedResourceId, evictedResource, writeBuffer, evictedPage);
-				 writeThread.request(writeRequest);				 
+				 writeThread.request(writeRequest);	
+
 			}
 			
 		} catch (DuplicateCacheEntryException dcee) {
@@ -652,4 +667,10 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			ie.printStackTrace();
 		}
 	}		
+	
+	
+	
+	
+
+	
 }

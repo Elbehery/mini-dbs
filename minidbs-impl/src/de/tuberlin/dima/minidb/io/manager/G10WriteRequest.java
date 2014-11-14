@@ -1,8 +1,6 @@
 package de.tuberlin.dima.minidb.io.manager;
 
 import de.tuberlin.dima.minidb.io.cache.CacheableData;
-import de.tuberlin.dima.minidb.io.tables.G10TablePage;
-import de.tuberlin.dima.minidb.io.tables.TablePage;
 
 public class G10WriteRequest {
 	
@@ -19,10 +17,6 @@ public class G10WriteRequest {
 		this.buffer = buffer;
 		this.wrapper = wrapper;
 		this.resourceId = resourceId;
-		
-		if (G10TablePage.readIntByteArray(buffer, G10TablePage.HEADER_POS_MAGIC_NUMBER) != TablePage.TABLE_DATA_PAGE_HEADER_MAGIC_NUMBER) {
-			System.out.println("Write error : Magic number doesn't match");
-		}
 		
 	}
 	
