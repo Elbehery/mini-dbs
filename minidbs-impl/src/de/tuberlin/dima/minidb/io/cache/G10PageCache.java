@@ -169,7 +169,7 @@ public class G10PageCache implements PageCache {
 		  int b1 = bottomRecent.size();
 		  int b2 = bottomFrequent.size();
 		 	
-		  int delta = ( b1 >= b2 ? 1 : b2/b1);
+		  int delta = ( b1 >= b2 || b1 == 0 ? 1 : b2/b1);
 		 	
 		 	
 		 	targetSize  = Math.min(targetSize + delta, numPages/2);
@@ -192,7 +192,7 @@ public class G10PageCache implements PageCache {
 		 int b1 = bottomRecent.size();
 		  int b2 = bottomFrequent.size();
 		  
-		  int delta = ( b2 >= b1 ? 1 : b1/b2);
+		  int delta = ( b2 >= b1 || b2 == 0 ? 1 : b1/b2);
 		 
 		 	
 		  targetSize  = Math.min(targetSize - delta, 0);

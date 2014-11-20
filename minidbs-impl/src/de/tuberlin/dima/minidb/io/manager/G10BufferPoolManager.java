@@ -8,11 +8,11 @@ import java.util.NoSuchElementException;
 import java.util.logging.Logger;
 
 import de.tuberlin.dima.minidb.Config;
+import de.tuberlin.dima.minidb.api.AbstractExtensionFactory;
 import de.tuberlin.dima.minidb.io.cache.CachePinnedException;
 import de.tuberlin.dima.minidb.io.cache.CacheableData;
 import de.tuberlin.dima.minidb.io.cache.DuplicateCacheEntryException;
 import de.tuberlin.dima.minidb.io.cache.EvictedCacheEntry;
-import de.tuberlin.dima.minidb.io.cache.G10PageCache;
 import de.tuberlin.dima.minidb.io.cache.PageCache;
 import de.tuberlin.dima.minidb.io.cache.PageFormatException;
 import de.tuberlin.dima.minidb.io.cache.PageSize;
@@ -132,7 +132,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		
 		if (!caches.containsKey(pageSize)) {
 			
-			PageCache cache = new G10PageCache(pageSize, config.getCacheSize(pageSize));
+			PageCache cache = AbstractExtensionFactory.getExtensionFactory().createPageCache(pageSize, config.getCacheSize(pageSize));
 			
 			caches.put(pageSize, cache);
 			
@@ -254,6 +254,8 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			request = new G10ReadRequest(resource, readBuffer, pageNumber, resourceId, false);
 			readThread.request(request);
 			
+			CacheableData wrapper;
+			
 			
 		try {
 			synchronized (request) {
@@ -261,6 +263,8 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				while (!request.isDone()) {
 					request.wait();
 				}
+				
+				wrapper = request.getWrapper();
 			}			
 		} catch (InterruptedException ie) {
 			throw new IOException("Request interrupted");
@@ -268,11 +272,11 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			
 			
 			// Read request complete : add page to cache
-			addPageInCache(resourceId, request.getWrapper(), true);
+			addPageInCache(resourceId, wrapper, true);
 			
 		
 				
-		return request.getWrapper();
+		return wrapper;
 	}
 
 	
@@ -331,12 +335,16 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		G10ReadRequest request = new G10ReadRequest(resource, buffer, getPageNumber, resourceId, false);
 		readThread.request(request);
 		
+		CacheableData wrapper;
+		
 		
 		try {			
 			synchronized (request) {
 				while (!request.isDone()) {
 				request.wait();
 				}
+				
+				wrapper = request.getWrapper();
 			}	
 			
 		} catch (InterruptedException ie) {
@@ -344,9 +352,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		}
 		
 		// Add page to cache
-		addPageInCache(resourceId, request.getWrapper(), true);
+		addPageInCache(resourceId, wrapper, true);
 
-		return request.getWrapper();
+		return wrapper;
 	}
 	
 	
@@ -591,13 +599,14 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			bufferQueue.add(new byte[pageSize.getNumberOfBytes()]);		
 			bufferQueue.notifyAll();      
 		}		
-	}
-	
+	}	
 	
 	private byte[] getBuffer(PageSize pageSize) throws BufferPoolException {
 		
 		LinkedList<byte[]> bufferQueue = buffers.get(pageSize);
 		byte[] buffer;
+		
+	//	System.out.println(bufferQueue.size() + " buffers in queue " + pageSize);
 		
 		try {
 			synchronized (bufferQueue) {
