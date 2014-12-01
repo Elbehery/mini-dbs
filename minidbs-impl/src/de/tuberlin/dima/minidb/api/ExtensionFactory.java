@@ -13,6 +13,7 @@ import de.tuberlin.dima.minidb.io.cache.PageCache;
 import de.tuberlin.dima.minidb.io.cache.PageFormatException;
 import de.tuberlin.dima.minidb.io.cache.PageSize;
 import de.tuberlin.dima.minidb.io.index.BTreeIndex;
+import de.tuberlin.dima.minidb.io.index.G10BTreeIndex;
 import de.tuberlin.dima.minidb.io.manager.BufferPoolManager;
 import de.tuberlin.dima.minidb.io.manager.G10BufferPoolManager;
 import de.tuberlin.dima.minidb.io.tables.G10TablePage;
@@ -78,7 +79,8 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 
 	@Override
 	public BTreeIndex createBTreeIndex(IndexSchema schema, BufferPoolManager bufferPool, int resourceId) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10BTreeIndex(schema, bufferPool, resourceId);
 	}
 
 	@Override
