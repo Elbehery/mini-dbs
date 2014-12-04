@@ -29,6 +29,8 @@ import de.tuberlin.dima.minidb.qexec.DeleteOperator;
 import de.tuberlin.dima.minidb.qexec.FetchOperator;
 import de.tuberlin.dima.minidb.qexec.FilterCorrelatedOperator;
 import de.tuberlin.dima.minidb.qexec.FilterOperator;
+import de.tuberlin.dima.minidb.qexec.G10IndexScanOperator;
+import de.tuberlin.dima.minidb.qexec.G10TableScanOperator;
 import de.tuberlin.dima.minidb.qexec.GroupByOperator;
 import de.tuberlin.dima.minidb.qexec.IndexCorrelatedLookupOperator;
 import de.tuberlin.dima.minidb.qexec.IndexLookupOperator;
@@ -86,12 +88,15 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 	@Override
 	public TableScanOperator createTableScanOperator(BufferPoolManager bufferPool, TableResourceManager tableManager, int resourceId,
 			int[] producedColumnIndexes, LowLevelPredicate[] predicate, int prefetchWindowLength) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10TableScanOperator(bufferPool, tableManager, resourceId,
+				 producedColumnIndexes, predicate, prefetchWindowLength);
 	}
 
 	@Override
 	public IndexScanOperator createIndexScanOperator(BTreeIndex index, DataField startKey, DataField stopKey, boolean startKeyIncluded, boolean stopKeyIncluded) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10IndexScanOperator(index, startKey, stopKey, startKeyIncluded, stopKeyIncluded);
 	}
 
 	@Override

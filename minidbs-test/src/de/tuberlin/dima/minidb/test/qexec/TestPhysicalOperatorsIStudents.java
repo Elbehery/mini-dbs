@@ -330,6 +330,11 @@ public class TestPhysicalOperatorsIStudents
 						
 						// check that the tuple sets match
 						Set<DataTuple> should = passingTuples.get(pred);
+						
+						System.out.println("Tuples : " + result.size() + "/" + should.size());
+						
+						System.out.println("Result : " + result.toString());
+						System.out.println("Should : " + should.toString());
 						assertTrue("Not all values that should be contained in the table scan result are contained.", result.containsAll(should));
 						assertTrue("The table scan operator returned values that should not have been returned.", should.containsAll(result));
 						
