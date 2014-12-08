@@ -1,6 +1,8 @@
 package de.tuberlin.dima.minidb.qexec;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 
 import de.tuberlin.dima.minidb.core.DataTuple;
@@ -16,13 +18,14 @@ public class G10TableScanOperator implements TableScanOperator {
 
 	private BufferPoolManager bufferPool;
 	private TableResourceManager tableManager;
-	private int resourceId;
-	private int[] producedColumnIndexes;
-	private long colBitmap;
-	private int colBitmapSize;
+	private int resourceId;	
 	private LowLevelPredicate[] predicate;
 	private int prefetchWindowLength;
 	private int currentPageNumber;
+	private int[] producedColumnIndexes;
+	private long colBitmap;
+	private ArrayList<Integer> columnIndexes;
+
 	private TablePage currentPage;
 	private TupleIterator iterator;
 
@@ -37,28 +40,26 @@ public class G10TableScanOperator implements TableScanOperator {
 				this.predicate = predicate;
 				this.prefetchWindowLength = prefetchWindowLength;
 				
+				
+				// Column bitmap used to tell which column to retrieve from the table
+				// Ex : col 1,2,4 : 10110 = 22
 				this.colBitmap = 0;
-				this.colBitmapSize = 0;
-				HashSet<Integer> bits = new HashSet<Integer>();
+				
+				// Array of the indexes retrieved -- redundant with the column bitmap but make the normalization easier
+				// Ex : col 1, 2, 4 : [1, 2, 4]
+				this.columnIndexes = new ArrayList<Integer>();
 				
 				
-				System.out.println("Columns : ");
 				for (int i = 0; i < producedColumnIndexes.length; i++) {
-					System.out.print(producedColumnIndexes[i] + ", ");
 					
-					if(!bits.contains(producedColumnIndexes[i])) {
+					if(!columnIndexes.contains(producedColumnIndexes[i])) {
+						
 						this.colBitmap += Math.pow(2, producedColumnIndexes[i]);
-						this.colBitmapSize++;
-						
-						bits.add(producedColumnIndexes[i]);
-						
+						columnIndexes.add(producedColumnIndexes[i]);						
 					}
 				}
 				
-				
-				System.out.println(colBitmap);
-				
-				
+				Collections.sort(columnIndexes);
 	}
 
 	@Override
@@ -70,7 +71,7 @@ public class G10TableScanOperator implements TableScanOperator {
 			
 			currentPage = (TablePage) bufferPool.getPageAndPin(resourceId, currentPageNumber);
 			
-			iterator = currentPage.getIterator(predicate, colBitmapSize, colBitmap);
+			iterator = currentPage.getIterator(predicate, columnIndexes.size(), colBitmap);
 			
 		
 			bufferPool.prefetchPages(resourceId, currentPageNumber + 1, currentPageNumber + prefetchWindowLength);
@@ -80,9 +81,8 @@ public class G10TableScanOperator implements TableScanOperator {
 	}
 
 	@Override
-	public DataTuple next() throws QueryExecutionException {
+	public DataTuple next() throws QueryExecutionException {		
 		
-		DataTuple test;
 		
 		
 		try {
@@ -93,13 +93,11 @@ public class G10TableScanOperator implements TableScanOperator {
 				while(currentPageNumber != tableManager.getLastDataPageNumber()) {
 					
 					currentPageNumber++;
-					currentPage = (TablePage) bufferPool.getPageAndPin(resourceId, currentPageNumber);
-					
-					iterator = currentPage.getIterator(predicate, colBitmapSize, colBitmap);
-					
+					currentPage = (TablePage) bufferPool.unpinAndGetPageAndPin(resourceId, currentPageNumber - 1, currentPageNumber);
+					iterator = currentPage.getIterator(predicate, columnIndexes.size(), colBitmap);
+
 					if(iterator.hasNext())
-						return normalize(iterator.next());
-					
+						return normalize(iterator.next());					
 				}
 			}
 			
@@ -116,40 +114,45 @@ public class G10TableScanOperator implements TableScanOperator {
 
 	@Override
 	public void close() throws QueryExecutionException {
-
+		
+		iterator = null;
+		
+		bufferPool.unpinPage(resourceId, currentPageNumber);
 	}
 	
 	
 	
 	private DataTuple normalize(DataTuple tuple) {
 		
+		/*
+		 * The input tuple follows the indexes in columnIndexes 
+		 * and has to be mapped to the result tuple following producedColumnIndexes
+		 * 
+		 */
 		DataTuple result = new DataTuple(producedColumnIndexes.length);
-		
-		
-		int i = 0;
-		int currentCol = 0;
-		
-		while(currentCol < colBitmapSize) {
-			
-			if ((colBitmap << i) % 2 == 1) {
-				for(int col = 0; col < producedColumnIndexes.length; col ++) {
-					
-					if(producedColumnIndexes[col] == i)	
-						result.assignDataField(tuple.getField(currentCol), col);
-					
-				}
-				
-				currentCol++;
-			}
-			
-			i++;
-			
-		}
-		
-		
 
+		/* Ex : columnIndexes : [1,2,4]
+		 * 		producedColumnIndexes : [2, 4, 4, 1]
+		 * 
+		 */
 		
+		// Loop through columnIndexes
+		for(int i = 0; i < columnIndexes.size(); i++) {
+			
+			int index = columnIndexes.get(i);
+			
+			// Loop through producedColumnIndexes to find matching columns
+			for(int col = 0; col < producedColumnIndexes.length; col ++) {
+					
+				// Fill result tuple according to producedColumnIndexes
+				if(producedColumnIndexes[col] == index)	
+					result.assignDataField(tuple.getField(i), col);
+					
+			}				
+		}		
 		return result;
 	}
+	
+	
 
 }

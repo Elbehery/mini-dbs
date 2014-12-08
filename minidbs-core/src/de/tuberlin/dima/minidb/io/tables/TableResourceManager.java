@@ -406,6 +406,9 @@ public class TableResourceManager extends ResourceManager {
 			long bytesRemaining = buffers.length * this.pageSize;
 			int currFirstBuffer = 0;
 			do {
+				
+				//	System.out.print("W");
+				
 				bytesRemaining -= this.ioChannel.write(b, currFirstBuffer, buffers.length - currFirstBuffer);
 				currFirstBuffer = (int) ((totalSize - bytesRemaining) / this.pageSize);
 			} while (bytesRemaining > 0);
@@ -480,13 +483,17 @@ public class TableResourceManager extends ResourceManager {
 		for (int i = 0; i < buffers.length; i++) {
 			b[i] = ByteBuffer.wrap(buffers[i], 0, this.pageSize);
 		}
-
+		int currFirstBuffer = 0;
 		try {
 			this.ioChannel.position(this.pageSize * (long) firstPageNumber);
 			long totalSize = buffers.length * this.pageSize;
 			long bytesRemaining = buffers.length * this.pageSize;
-			int currFirstBuffer = 0;
+			
 			do {
+				
+				//	System.out.println("Buffer : " + b.length + ", Offset : " + currFirstBuffer + ", remaining : " + bytesRemaining);
+				
+				
 				bytesRemaining -= this.ioChannel.read(b, currFirstBuffer, buffers.length - currFirstBuffer);
 				currFirstBuffer = (int) ((totalSize - bytesRemaining) / this.pageSize);
 			} while (bytesRemaining > 0);

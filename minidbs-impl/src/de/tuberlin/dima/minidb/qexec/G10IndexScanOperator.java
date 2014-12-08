@@ -1,8 +1,15 @@
 package de.tuberlin.dima.minidb.qexec;
 
+import java.io.IOException;
+
 import de.tuberlin.dima.minidb.core.DataField;
 import de.tuberlin.dima.minidb.core.DataTuple;
+import de.tuberlin.dima.minidb.core.RID;
+import de.tuberlin.dima.minidb.io.cache.PageFormatException;
 import de.tuberlin.dima.minidb.io.index.BTreeIndex;
+import de.tuberlin.dima.minidb.io.index.IndexFormatCorruptException;
+import de.tuberlin.dima.minidb.io.index.IndexResultIterator;
+import de.tuberlin.dima.minidb.io.tables.TablePage;
 
 public class G10IndexScanOperator implements IndexScanOperator{
 	
@@ -12,6 +19,8 @@ public class G10IndexScanOperator implements IndexScanOperator{
 	private DataField stopKey;
 	private boolean startKeyIncluded;
 	private boolean stopKeyIncluded;
+	
+	private IndexResultIterator<DataField> iterator;
 
 	public G10IndexScanOperator(BTreeIndex index, DataField startKey, DataField stopKey,
 				boolean startKeyIncluded, boolean stopKeyIncluded) {
@@ -26,19 +35,48 @@ public class G10IndexScanOperator implements IndexScanOperator{
 
 	@Override
 	public void open(DataTuple correlatedTuple) throws QueryExecutionException {
-		// TODO Auto-generated method stub
 		
+		
+			
+		try {
+			iterator = index.lookupKeys(startKey, stopKey, startKeyIncluded, stopKeyIncluded);
+			
+		} catch (IndexFormatCorruptException | PageFormatException
+				| IOException e) {
+			throw new QueryExecutionException(e);
+		}
+
+	
 	}
 
 	@Override
 	public DataTuple next() throws QueryExecutionException {
-		// TODO Auto-generated method stub
+		
+		DataField key;
+		
+
+			try {
+				if(iterator.hasNext()) {
+					key = iterator.next();
+					
+					DataTuple result = new DataTuple(1);
+					
+					result.assignDataField(key, 0);
+					
+					return result;
+				}
+				
+			} catch (IndexFormatCorruptException | IOException
+					| PageFormatException e) {
+				throw new QueryExecutionException(e);
+			}
+			
 		return null;
 	}
 
 	@Override
 	public void close() throws QueryExecutionException {
-		// TODO Auto-generated method stub
+		iterator = null;
 		
 	}
 	
