@@ -36,7 +36,7 @@ public class G10WriteThread extends Thread {
 			
 			
 			
-			if (!requests.isEmpty()) {	
+			while (!requests.isEmpty()) {	
 				
 				
 				G10WriteRequest request = requests.remove();
@@ -60,7 +60,7 @@ public class G10WriteThread extends Thread {
 						
 						resource.writePageToResource(buffer, wrapper);
 						
-					//	System.out.println("Write");
+					//System.out.println("W");
 
 					}
 					
@@ -79,7 +79,8 @@ public class G10WriteThread extends Thread {
 	
 	public synchronized void request(G10WriteRequest request) {
 		
-	requests.add(request);
+	//	System.out.println("Rq");
+		requests.add(request);
 	}
 	
 	public synchronized CacheableData getRequest(int resourceId, int pageNumber) {

@@ -42,7 +42,7 @@ public class G10ReadThread extends Thread {
 			
 			if (!requests.isEmpty()) {
 				
-				G10ReadRequest request = requests.remove();
+				G10ReadRequest request = requests.peek();
 
 
 				synchronized (request) {
@@ -56,7 +56,6 @@ public class G10ReadThread extends Thread {
 						
 						synchronized(resource) {
 							 page = resource.readPageFromResource(buffer, pageNumber);	
-						//	 System.out.println("Read");
 						}
 						
 						if (request.isPrefetch())
@@ -66,11 +65,13 @@ public class G10ReadThread extends Thread {
 						
 					} catch (IOException ioe) {
 						System.out.println("Read IO Exception : " + ioe.getMessage());
+						System.out.println(resource.getClass());
 						
 						
 					} finally {
 						
 						request.done();
+						requests.remove();
 						request.notifyAll();
 					}
 					
@@ -101,13 +102,26 @@ public class G10ReadThread extends Thread {
 				}
 		
 		return null;
-		
 	}
 	
 	
+
+	public boolean isRunning() {
+		return this.alive;
+	}
+	
 	public void stopThread()
 	{
+		
 		this.alive = false;
+		
+		while (!requests.isEmpty()) {
+			G10ReadRequest request = requests.remove();
+			synchronized(request) {
+				request.notifyAll();
+			}
+		}
+		
 	}
 	
 	

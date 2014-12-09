@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.logging.Logger;
 
@@ -77,25 +78,83 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		
 	}
 
+	
+	/**
+	 * This method closes the buffer pool. It causes the following actions:
+	 * <ol>
+	 *   <li>It prevents further requests from being processed</li>
+	 *   <li>Its stops the reading thread from fetching any further pages. Requests that are currently in the
+	 *       queues to be read are discarded.</li>
+	 *   <li>All methods that are currently blocked and waiting on a synchronous page request will be waken up and
+	 *       must throw a BufferPoolException as soon as they wake up.</li>
+	 *   <li>It closes all resources, meaning that it gets all their pages from the cache, and queues the modified
+	 *       pages to be written out.</li>
+	 *   <li>It dereferences the caches (setting them to null), allowing the garbage collection to
+	 *       reclaim the memory.</li>
+	 * </ol>
+	 */
 	@Override
 	public void closeBufferPool() {
+		
+		this.opened = false;
+		
+		
 		readThread.stopThread();
+		
+		
+		for(Entry<Integer, ResourceManager> entry : resources.entrySet()) {
+			try {
+				int resourceId = entry.getKey();
+				ResourceManager resource = entry.getValue();
+				
+				PageCache cache = caches.get(resource.getPageSize());
+				
+				CacheableData[] pages = cache.getAllPagesForResource(resourceId);
+				
+				for (CacheableData page : pages) {
+			
+					if (page != null && page.hasBeenModified()) {
+
+						byte[] writeBuffer = getBuffer(resource.getPageSize());
+						 
+						 
+						 System.arraycopy(page.getBuffer(), 0, writeBuffer, 0, writeBuffer.length);
+			
+						 G10WriteRequest writeRequest = new G10WriteRequest(resourceId, resource, writeBuffer, page);
+						 writeThread.request(writeRequest);	
+					}
+				}
+			} catch (BufferPoolException e) {
+				// Well .. can't do much
+			}
+		}
+		
 		writeThread.stopThread();
 		
+		try {
+			writeThread.join();
+		} catch (InterruptedException e) {
+			// Well .. can't do much
+		}
 		
 		
+		for(PageCache cache : caches.values()) {
+			cache = null;
+		}
 
-			for(ResourceManager resource : resources.values()) {
+		
+		// The bufferPool shouldn't close the resource managers himself
+		/*	for(ResourceManager resource : resources.values()) {
 				try {
 					resource.closeResource();
 					
 				} catch (IOException ioe) {
 					// Well .. can't do much
 				}
-			}
+			}*/
 		
 		
-		this.opened = false;
+		
 		
 	}
 
@@ -176,6 +235,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	public CacheableData getPageAndPin(int resourceId, int pageNumber)
 			throws BufferPoolException, IOException {
 		
+		if (!this.opened)
+			throw new BufferPoolException("The Buffer Pool Manager is closed");
+		
 		ResourceManager resource = resources.get(resourceId);
 		
 		if (resource == null) 
@@ -186,61 +248,68 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		
 		// Look in the cache first
 		PageCache cache = caches.get(resource.getPageSize());
-
+		G10ReadRequest request;
+		
 		synchronized (cache) {
 		
 			CacheableData page = cache.getPageAndPin(resourceId, pageNumber);
 		
 			if (page != null)
 				return page;		
-		}
 		
-		
-		
-		
-		
-		// Page not in cache : is it currently in one request queue ? (useful ??)
-		
-		// - write queue : use the version waiting to be read
-		
-		CacheableData page = writeThread.getRequest(resourceId, pageNumber);
-		
-		if (page != null) {
-			addPageInCache(resourceId, page, true);
-			System.out.println("Write request found");
-			return page;
-		}
-		
-		
-		// - Read queue : wait for the request to complete and return the page (+ hit ! )
-		
-		G10ReadRequest request = readThread.getRequest(resourceId, pageNumber);
-		
-		if (request != null) {
 			
-			System.out.println("read request found");
-			try {
-				synchronized (request) {
-					
-					while (!request.isDone()) {
-						request.wait();
-					}
-				}			
-			} catch (InterruptedException ie) {
-				throw new IOException("Request interrupted");
+			 request = readThread.getRequest(resourceId, pageNumber);
+
+		}
+		
+		
+		
+			
+			// Page not in cache : is it currently in one request queue ? (useful ??)
+			
+			// - write queue : use the version waiting to be read
+			
+			CacheableData page = writeThread.getRequest(resourceId, pageNumber);
+			
+			if (page != null) {
+				addPageInCache(resourceId, page, true);
+				//System.out.println("Write request found");
+				return page;
 			}
 			
-			synchronized (cache) {
+			
+			// - Read queue : wait for the request to complete and return the page (+ hit ! )
+			
+			
+			if (request != null) {
 				
-				page = cache.getPageAndPin(resourceId, pageNumber); // Just to hit it, should be the same as in the request wrapper
-			
-				if (page != null)
-					return page;		
+				//System.out.println("read request found");
+				try {
+					synchronized (request) {
+						
+						while (!request.isDone()) {
+							request.wait();
+							if(!readThread.isRunning())
+								throw new BufferPoolException("Buffer Pool is closing");
+						}
+					}			
+				} catch (InterruptedException ie) {
+					throw new IOException("Request interrupted");
+				}
+				
+				synchronized (cache) {
+					
+					page = cache.getPageAndPin(resourceId, pageNumber); // Just to hit it, should be the same as in the request wrapper
+				
+					if (page != null)
+						return page;		
+				}
+				
+				
+				return request.getWrapper();
 			}
-			
-			
-			return request.getWrapper();
-		}
+		
+		
 		
 		
 		// Page not in cache : emit a read request
@@ -262,6 +331,8 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				
 				while (!request.isDone()) {
 					request.wait();
+					if(!readThread.isRunning())
+						throw new BufferPoolException("Buffer Pool is closing");
 				}
 				
 				wrapper = request.getWrapper();
@@ -306,6 +377,10 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			int unpinPageNumber, int getPageNumber) throws BufferPoolException,
 			IOException {
 		
+		
+		if (!this.opened)
+			throw new BufferPoolException("The Buffer Pool Manager is closed");
+		
 		ResourceManager resource = resources.get(resourceId);
 		
 		if (resource == null) 
@@ -314,7 +389,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		
 		// Look first in cache
 		PageCache cache = caches.get(resource.getPageSize());
-		
+		G10ReadRequest request;
 		synchronized (cache) {
 			cache.unpinPage(resourceId, unpinPageNumber);
 			CacheableData page = cache.getPageAndPin(resourceId, getPageNumber);
@@ -322,6 +397,8 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			if (page != null)
 				return page;
 		
+			 request = readThread.getRequest(resourceId, getPageNumber);
+			
 		}
 		
 
@@ -330,9 +407,29 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		byte[] buffer;
 		
 		buffer = getBuffer(resource.getPageSize());
-
 		
-		G10ReadRequest request = new G10ReadRequest(resource, buffer, getPageNumber, resourceId, false);
+		
+		
+		
+		if (request != null) {
+			synchronized (request) {
+				while (!request.isDone()) {
+					try {
+						request.wait();
+					} catch (InterruptedException e) {
+						throw new IOException("Request interrupted");
+					}
+					if(!readThread.isRunning())
+						throw new BufferPoolException("Buffer Pool is closing");
+				}			
+			}	
+			return request.getWrapper();
+			
+		}
+
+	
+		request = new G10ReadRequest(resource, buffer, getPageNumber, resourceId, false);
+
 		readThread.request(request);
 		
 		CacheableData wrapper;
@@ -341,7 +438,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		try {			
 			synchronized (request) {
 				while (!request.isDone()) {
-				request.wait();
+					request.wait();
+					if(!readThread.isRunning())
+						throw new BufferPoolException("Buffer Pool is closing");
 				}
 				
 				wrapper = request.getWrapper();
@@ -351,11 +450,17 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			throw new IOException("Request interrupted");
 		}
 		
+
+		if (wrapper.getPageNumber() != getPageNumber)
+			throw new BufferPoolException("Read page number different from the one requested");
+		
 		// Add page to cache
 		addPageInCache(resourceId, wrapper, true);
 
+		
 		return wrapper;
 	}
+
 	
 	
 	
@@ -408,6 +513,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	public void prefetchPage(int resourceId, int pageNumber)
 			throws BufferPoolException {
 		
+		if (!this.opened)
+			throw new BufferPoolException("The Buffer Pool Manager is closed");
+		
 		ResourceManager resource = resources.get(resourceId);
 		
 		if (resource == null)
@@ -456,6 +564,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	public void prefetchPages(int resourceId, int startPageNumber,
 			int endPageNumber) throws BufferPoolException {
 		
+		if (!this.opened)
+			throw new BufferPoolException("The Buffer Pool Manager is closed");
+		
 		
 		ResourceManager resource = resources.get(resourceId);
 		
@@ -494,6 +605,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			
 			// prefetch = true : the read request takes care of adding the page to cache to allow the prefetch function to return immediately
 			request = new G10ReadRequest(resource, readBuffer, pageNumber, resourceId, true);
+
 			readThread.request(request);
 		}	
 	}
@@ -501,6 +613,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	@Override
 	public CacheableData createNewPageAndPin(int resourceId)
 			throws BufferPoolException, IOException {
+		
+		if (!this.opened)
+			throw new BufferPoolException("The Buffer Pool Manager is closed");
 	
 		ResourceManager resource = resources.get(resourceId);
 		
@@ -557,6 +672,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	public CacheableData createNewPageAndPin(int resourceId, Enum<?> type)
 			throws BufferPoolException, IOException {
 		
+		if (!this.opened)
+			throw new BufferPoolException("The Buffer Pool Manager is closed");
+		
 		
 		ResourceManager resource = resources.get(resourceId);
 		
@@ -571,7 +689,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 
 			CacheableData page;
 			synchronized(resource) {
-				page = resource.reserveNewPage(buffer);				
+				page = resource.reserveNewPage(buffer, type);				
 			}
 							
 			addPageInCache(resourceId, page, true);
@@ -634,7 +752,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		PageCache cache = caches.get(pageSize);
 
 	
-		
+		//System.out.print(page.getPageNumber());
 
 		EvictedCacheEntry evicted;
 		try {
@@ -644,12 +762,31 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				} else {
 					evicted = cache.addPage(page, resourceId);
 				}
+				
+				
+				
+		/*		CacheableData[] pages = cache.getAllPagesForResource(resourceId);
+				
+				System.out.println("C : ");
+				for (CacheableData currentPage : pages) {
+					System.out.print(currentPage.getPageNumber() + ", ");
+				}*/
 			}
+			
+			
 			
 			
 			freeBuffer(pageSize);	
 			
 			CacheableData evictedPage = evicted.getWrappingPage();
+			
+			int evictedNbr;
+			if(evictedPage != null)
+				evictedNbr = evictedPage.getPageNumber();
+			else
+				evictedNbr = 0;
+			
+			//System.out.print(" (" + evictedNbr + "), ");
 			
 			int evictedResourceId = evicted.getResourceID();
 			ResourceManager evictedResource = resources.get(evictedResourceId);
@@ -667,7 +804,9 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			}
 			
 		} catch (DuplicateCacheEntryException dcee) {
+			
 			dcee.printStackTrace();
+			System.out.println("Page : " + dcee.getPageNumber());
 		} catch (CachePinnedException cpe) {
 			cpe.printStackTrace();
 		} catch (NoSuchElementException nsee) {			
