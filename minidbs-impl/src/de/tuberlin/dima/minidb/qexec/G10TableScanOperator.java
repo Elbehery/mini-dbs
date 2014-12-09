@@ -3,7 +3,6 @@ package de.tuberlin.dima.minidb.qexec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 
 import de.tuberlin.dima.minidb.core.DataTuple;
 import de.tuberlin.dima.minidb.io.cache.PageExpiredException;
@@ -74,7 +73,10 @@ public class G10TableScanOperator implements TableScanOperator {
 			iterator = currentPage.getIterator(predicate, columnIndexes.size(), colBitmap);
 			
 		
-			bufferPool.prefetchPages(resourceId, currentPageNumber + 1, currentPageNumber + prefetchWindowLength);
+			int endPrefetchPageNumber = Math.min(currentPageNumber + prefetchWindowLength, tableManager.getLastDataPageNumber());
+			
+			
+			bufferPool.prefetchPages(resourceId, currentPageNumber + 1, endPrefetchPageNumber);
 		} catch (BufferPoolException | PageExpiredException | PageTupleAccessException | IOException e) {		
 			throw new QueryExecutionException(e);
 		}
@@ -93,6 +95,7 @@ public class G10TableScanOperator implements TableScanOperator {
 				while(currentPageNumber != tableManager.getLastDataPageNumber()) {
 					
 					currentPageNumber++;
+					//System.out.print("[" + currentPageNumber + "]");
 					currentPage = (TablePage) bufferPool.unpinAndGetPageAndPin(resourceId, currentPageNumber - 1, currentPageNumber);
 					iterator = currentPage.getIterator(predicate, columnIndexes.size(), colBitmap);
 
@@ -106,6 +109,7 @@ public class G10TableScanOperator implements TableScanOperator {
 			
 			
 		} catch (BufferPoolException | IOException | PageTupleAccessException e) {
+			e.printStackTrace();
 			throw new QueryExecutionException(e);
 		} 
 		

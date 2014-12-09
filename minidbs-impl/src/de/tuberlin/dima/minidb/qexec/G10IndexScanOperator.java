@@ -4,12 +4,10 @@ import java.io.IOException;
 
 import de.tuberlin.dima.minidb.core.DataField;
 import de.tuberlin.dima.minidb.core.DataTuple;
-import de.tuberlin.dima.minidb.core.RID;
 import de.tuberlin.dima.minidb.io.cache.PageFormatException;
 import de.tuberlin.dima.minidb.io.index.BTreeIndex;
 import de.tuberlin.dima.minidb.io.index.IndexFormatCorruptException;
 import de.tuberlin.dima.minidb.io.index.IndexResultIterator;
-import de.tuberlin.dima.minidb.io.tables.TablePage;
 
 public class G10IndexScanOperator implements IndexScanOperator{
 	
