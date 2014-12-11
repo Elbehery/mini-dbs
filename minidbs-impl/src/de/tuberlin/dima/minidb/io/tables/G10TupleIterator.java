@@ -43,7 +43,7 @@ public class G10TupleIterator implements TupleIterator {
 			
 			if ((page.getTombstone(i) & 0x1) == 0) {
 				
-				if (preds == null)		
+				if (preds.length == 0)		
 					return true;	
 				
 				if (page.getDataTuple(preds, i, columnBitmap, numCols) != null) 					

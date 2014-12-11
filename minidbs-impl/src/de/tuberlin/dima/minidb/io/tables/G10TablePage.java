@@ -18,7 +18,6 @@ public class G10TablePage implements TablePage {
 	
 	private byte[] binaryPage;
 	private TableSchema schema;
-	private int recordWidth;
 	
 	private boolean expired;
 	private boolean modified;
@@ -48,10 +47,7 @@ public class G10TablePage implements TablePage {
 		if (readIntByteArray(binaryPage, HEADER_POS_MAGIC_NUMBER) != TablePage.TABLE_DATA_PAGE_HEADER_MAGIC_NUMBER) {
 			throw new PageFormatException("Magic number doesn't match");
 		}
-		
-		
-		
-		
+
 	}
 	
 	/**
@@ -70,7 +66,7 @@ public class G10TablePage implements TablePage {
 		expired = false;
 		modified = true;	// new pages are considered already modified
 		
-		recordWidth = 4;	// 4 bytes for metadata
+		int recordWidth = 4;	// 4 bytes for metadata
 		
 		
 		// Compute the whole records length
@@ -141,7 +137,14 @@ public class G10TablePage implements TablePage {
 		return readIntByteArray(binaryPage, HEADER_POS_NUMBER_RECORDS);
 	}
 	
-	public int getChunkOffset() throws PageExpiredException {
+	private int getRecordWidth() throws PageExpiredException {
+		
+		if (expired) throw new PageExpiredException();
+		
+		return readIntByteArray(binaryPage, HEADER_POS_RECORD_WIDTH);
+	}
+	
+	private int getChunkOffset() throws PageExpiredException {
 		
 		if (expired) throw new PageExpiredException();
 		
@@ -169,9 +172,8 @@ public class G10TablePage implements TablePage {
 		 *  current offset to the variable-length-chunk is invalid. */
 		
 		int chunkWidth = 0;
-		int recordOffset = getNumRecordsOnPage()*recordWidth + 32;
-		
-		
+		int recordOffset = getNumRecordsOnPage()*getRecordWidth() + 32;
+
 		
 	for (int i = 0; i < tuple.getNumberOfFields(); i++) {
 			
@@ -191,10 +193,8 @@ public class G10TablePage implements TablePage {
 			
 			//System.out.println(schema.getColumn(i).getColumnName() + " : " + schema.getColumn(i).getDataType() + ", "  + schema.getColumn(i).getDataType().getNumberOfBytes() + ", fixed : " + (schema.getColumn(i).getDataType().isFixLength() ? "yes" : "no"));	
 		}
-	
-	
-	
-	if (chunkWidth + recordWidth > getChunkOffset() - recordOffset)
+
+	if (chunkWidth + getRecordWidth()  > getChunkOffset() - recordOffset)
 		return false;
 		
 		
@@ -243,6 +243,7 @@ public class G10TablePage implements TablePage {
 	writeIntByteArray(binaryPage, HEADER_POS_NUMBER_RECORDS, getNumRecordsOnPage()+1);
 	writeIntByteArray(binaryPage, HEADER_POS_CHUNK_OFFSET, currentChunkOffset);
 
+		this.modified = true;
 		
 		return true;
 	}
@@ -256,6 +257,8 @@ public class G10TablePage implements TablePage {
 		int recordOffset = readIntByteArray(binaryPage, HEADER_POS_RECORD_WIDTH) * position + 32;
 		
 		writeIntByteArray(binaryPage, recordOffset, 1);
+		
+		this.modified = true;
 		
 	}
 
@@ -356,7 +359,7 @@ public class G10TablePage implements TablePage {
 			PageExpiredException {
 		
 		/* TODO should be optimized and not just use the normal method */
-		
+				
 		if (expired) throw new PageExpiredException();
 		
 		if (position > readIntByteArray(binaryPage, HEADER_POS_NUMBER_RECORDS) || position < 0) 
