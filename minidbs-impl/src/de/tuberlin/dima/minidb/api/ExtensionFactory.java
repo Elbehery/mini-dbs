@@ -30,8 +30,17 @@ import de.tuberlin.dima.minidb.qexec.FetchOperator;
 import de.tuberlin.dima.minidb.qexec.FilterCorrelatedOperator;
 import de.tuberlin.dima.minidb.qexec.FilterOperator;
 import de.tuberlin.dima.minidb.qexec.G10DeleteOperator;
+import de.tuberlin.dima.minidb.qexec.G10FetchOperator;
+import de.tuberlin.dima.minidb.qexec.G10FilterCorrelatedOperator;
+import de.tuberlin.dima.minidb.qexec.G10FilterOperator;
+import de.tuberlin.dima.minidb.qexec.G10GroupByOperator;
+import de.tuberlin.dima.minidb.qexec.G10IndexCorrelatedScanOperator;
+import de.tuberlin.dima.minidb.qexec.G10IndexLookupOperator;
 import de.tuberlin.dima.minidb.qexec.G10IndexScanOperator;
 import de.tuberlin.dima.minidb.qexec.G10InsertOperator;
+import de.tuberlin.dima.minidb.qexec.G10MergeJoinOperator;
+import de.tuberlin.dima.minidb.qexec.G10NestedLoopJoinOperator;
+import de.tuberlin.dima.minidb.qexec.G10SortOperator;
 import de.tuberlin.dima.minidb.qexec.G10TableScanOperator;
 import de.tuberlin.dima.minidb.qexec.GroupByOperator;
 import de.tuberlin.dima.minidb.qexec.IndexCorrelatedLookupOperator;
@@ -117,56 +126,71 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 	@Override
 	public NestedLoopJoinOperator createNestedLoopJoinOperator(PhysicalPlanOperator outerChild, PhysicalPlanOperator innerChild, JoinPredicate joinPredicate,
 			int[] columnMapOuterTuple, int[] columnMapInnerTuple) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10NestedLoopJoinOperator(outerChild, innerChild, joinPredicate,
+												columnMapOuterTuple, columnMapInnerTuple);
 	}
 
 	@Override
 	public IndexLookupOperator getIndexLookupOperator(BTreeIndex index, DataField equalityLiteral) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10IndexLookupOperator(index, equalityLiteral);
 	}
 
 	@Override
 	public IndexLookupOperator getIndexScanOperatorForBetweenPredicate(BTreeIndex index, DataField lowerBound, boolean lowerIncluded, DataField upperBound,
 			boolean upperIncluded) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10IndexLookupOperator(index, lowerBound, lowerIncluded, upperBound, upperIncluded);
 	}
 
 	@Override
 	public IndexCorrelatedLookupOperator getIndexCorrelatedScanOperator(BTreeIndex index, int correlatedColumnIndex) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10IndexCorrelatedScanOperator(index, correlatedColumnIndex);
 	}
 
 	@Override
 	public FetchOperator createFetchOperator(PhysicalPlanOperator child, BufferPoolManager bufferPool, int tableResourceId, int[] outputColumnMap) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10FetchOperator(child, bufferPool, tableResourceId, outputColumnMap);
+
 	}
 
 	@Override
 	public FilterOperator createFilterOperator(PhysicalPlanOperator child, LocalPredicate predicate) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10FilterOperator(child, predicate);
 	}
 
 	@Override
 	public FilterCorrelatedOperator createCorrelatedFilterOperator(PhysicalPlanOperator child, JoinPredicate correlatedPredicate) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10FilterCorrelatedOperator(child, correlatedPredicate);
 	}
 
 	@Override
 	public SortOperator createSortOperator(PhysicalPlanOperator child, QueryHeap queryHeap, DataType[] columnTypes, int estimatedCardinality,
 			int[] sortColumns, boolean[] columnsAscending) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10SortOperator(child, queryHeap, columnTypes, estimatedCardinality,	sortColumns, columnsAscending);
 	}
 
 	@Override
 	public GroupByOperator createGroupByOperator(PhysicalPlanOperator child, int[] groupColumnIndices, int[] aggColumnIndices,
 			AggregationType[] aggregateFunctions, DataType[] aggColumnTypes, int[] groupColumnOutputPositions, int[] aggregateColumnOutputPosition) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		
+		return new G10GroupByOperator(child, groupColumnIndices, aggColumnIndices,
+				aggregateFunctions, aggColumnTypes, groupColumnOutputPositions, aggregateColumnOutputPosition);
+			
 	}
 
 	@Override
 	public MergeJoinOperator createMergeJoinOperator(PhysicalPlanOperator leftChild, PhysicalPlanOperator rightChild, int[] leftJoinColumns,
 			int[] rightJoinColumns, int[] columnMapLeftTuple, int[] columnMapRightTuple) {
-		throw new UnsupportedOperationException("Method not yet supported");
+
+		return new G10MergeJoinOperator(leftChild, rightChild, leftJoinColumns,
+				rightJoinColumns, columnMapLeftTuple, columnMapRightTuple);
 	}
 
 	@Override

@@ -153,10 +153,7 @@ public class G10TableScanOperator implements TableScanOperator {
 					result.assignDataField(tuple.getField(i), col);
 					
 			}				
-		}		
+		}	
 		return result;
 	}
-	
-	
-
 }
