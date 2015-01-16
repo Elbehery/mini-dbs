@@ -3,6 +3,7 @@ package de.tuberlin.dima.minidb.test.optimizer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -173,6 +174,42 @@ public class TestJoinOrderOptimizerStudents
 	}
 	
 	
+	private static boolean containsRelation(OptimizerPlanOperator op, Relation rel) {
+		if(op instanceof AbstractJoinPlanOperator) {
+			return containsRelation(((AbstractJoinPlanOperator) op).getLeftChild(), rel) || containsRelation(((AbstractJoinPlanOperator) op).getRightChild(), rel);
+		}
+		if(op instanceof Relation) {
+			return (op.equals(rel));
+		}
+		return false;
+	}
+	
+	/*
+	 * Switch predicate to retain the right order
+	 */
+	private static JoinPredicate getRightSwitchedPredicate(OptimizerPlanOperator l, OptimizerPlanOperator r, JoinPredicate joinPredicate) {
+		if(joinPredicate instanceof JoinPredicateAtom){
+			JoinPredicateAtom atom = (JoinPredicateAtom) joinPredicate;
+			if(containsRelation(r,atom.getRightHandOriginatingTable()) || containsRelation(l, atom.getLeftHandOriginatingTable())){
+				return atom;
+			} else {
+				return atom.createSideSwitchedCopy();
+			}
+		}
+		if(joinPredicate instanceof JoinPredicateConjunct){
+			JoinPredicateConjunct conj = (JoinPredicateConjunct) joinPredicate;
+			
+			JoinPredicateConjunct newConj = new JoinPredicateConjunct();
+			
+			for(JoinPredicateAtom atom : conj.getConjunctiveFactors()){
+				newConj.addJoinPredicate(getRightSwitchedPredicate(l, r, atom));
+			}
+			return newConj;
+		}
+		return null;
+	}
+	
+	
 	/**
 	 * Simple join of ParSupp, Supplier, Lineitem and Orders. No predicates.
 	 */
@@ -332,10 +369,14 @@ public class TestJoinOrderOptimizerStudents
 		joinVerPred.addJoinPredicate(partsupp2lisuppPred2.createSideSwitchedCopy());
 		joinVerPred.addJoinPredicate(supp2lisuppPred.createSideSwitchedCopy());
 		joinVerPred.addJoinPredicate(part2lipartPred.createSideSwitchedCopy());
-		TestingJoinOrderVerifyer ver = new TestingJoinOrderVerifyer();
 		
 		
-		ver.setExpectedJoinOrder(query,	
+		ArrayList<JoinOrderVerifier> verifiers = new ArrayList<JoinOrderVerifier>();
+		
+		TestingJoinOrderVerifyer solution1 = new TestingJoinOrderVerifyer();
+		
+		
+		solution1.setExpectedJoinOrder(query,	
 				new AbstractJoinPlanOperator(
 					new AbstractJoinPlanOperator(
 						new AbstractJoinPlanOperator(
@@ -359,11 +400,49 @@ public class TestJoinOrderOptimizerStudents
 						JoinOrderOptimizerUtils.filterTwinPredicates(partsupp2suppPred)), 
 					JoinOrderOptimizerUtils.filterTwinPredicates(joinVerPred)));
 		
+		verifiers.add(solution1);
+		
+		//second solution
+		AbstractJoinPlanOperator regionJnation_1 = new AbstractJoinPlanOperator(regionTable, nationTable, JoinOrderOptimizerUtils.filterTwinPredicates(region2nationPred));
+		AbstractJoinPlanOperator customerJ1_2 = new AbstractJoinPlanOperator(customerTable, regionJnation_1, JoinOrderOptimizerUtils.filterTwinPredicates(cust2nationPred));
+		AbstractJoinPlanOperator ordersJ2_3 = new AbstractJoinPlanOperator(ordersTable, customerJ1_2, JoinOrderOptimizerUtils.filterTwinPredicates(cust2ordercustPred).createSideSwitchedCopy());
+		AbstractJoinPlanOperator lineitemJ3_4 = new AbstractJoinPlanOperator(lineitemTable, ordersJ2_3, JoinOrderOptimizerUtils.filterTwinPredicates(order2liorderPred).createSideSwitchedCopy());
+		
+		AbstractJoinPlanOperator psupplierJsupplier_5 = new AbstractJoinPlanOperator(partSuppTable, suppTable, JoinOrderOptimizerUtils.filterTwinPredicates(partsupp2suppPred));
+		AbstractJoinPlanOperator partJ6 = new AbstractJoinPlanOperator(partTable, psupplierJsupplier_5, JoinOrderOptimizerUtils.filterTwinPredicates(partsupp2partPred).createSideSwitchedCopy());
+		
+		
+		JoinPredicateConjunct joinVerPred2 = new JoinPredicateConjunct();
+		joinVerPred2.addJoinPredicate(part2lipartPred);
+		joinVerPred2.addJoinPredicate(partsupp2lisuppPred1);
+		
+		AbstractJoinPlanOperator final6J4 = new AbstractJoinPlanOperator(partJ6,lineitemJ3_4, JoinOrderOptimizerUtils.filterTwinPredicates(joinVerPred2));
+		
+		TestingJoinOrderVerifyer solution2 = new TestingJoinOrderVerifyer();
+		solution2.setExpectedJoinOrder(query, final6J4);
+		
 		// --------------------------------------------------------------------
 		//                       Call the optimizer code
 		// --------------------------------------------------------------------
 		
-		this.optimizer.createSelectQueryPlan(query, ver, true);
+		verifiers.add(solution2);
+		
+		ArrayList<Exception> eList = new ArrayList<Exception>();
+		
+		for(JoinOrderVerifier verifier : verifiers) {
+			try {
+				this.optimizer.createSelectQueryPlan(query, verifier, true);
+			} catch(Exception e) {
+				eList.add(e);
+			}
+		}
+		
+		if(verifiers.size() == eList.size()) {
+			for(Exception e: eList) {
+				System.out.println(e.getMessage());
+			}
+			throw new OptimizerException("Your plan is not within the solutions! (See test output.)");
+		}
 	}	
 
 	/**
@@ -547,9 +626,11 @@ public class TestJoinOrderOptimizerStudents
 		// --------------------------------------------------------------------
 		//                         Prepare the query
 		// --------------------------------------------------------------------
-		TestingJoinOrderVerifyer ver = new TestingJoinOrderVerifyer();
+		ArrayList<JoinOrderVerifier> verifiers = new ArrayList<JoinOrderVerifier>();
 		
-		ver.setExpectedJoinOrder(query,	
+		TestingJoinOrderVerifyer solution1 = new TestingJoinOrderVerifyer();
+		
+		solution1.setExpectedJoinOrder(query,	
 				new AbstractJoinPlanOperator(
 					new AbstractJoinPlanOperator(
 						new AbstractJoinPlanOperator(
@@ -567,7 +648,7 @@ public class TestJoinOrderOptimizerStudents
 						JoinOrderOptimizerUtils.filterTwinPredicates(nation2suppPred)), 
 					JoinOrderOptimizerUtils.filterTwinPredicates(topJoinPred)));
 		
-		ver.setExpectedJoinOrder(subquery, 
+		solution1.setExpectedJoinOrder(subquery, 
 				new AbstractJoinPlanOperator(
 					new AbstractJoinPlanOperator(
 						new AbstractJoinPlanOperator(
@@ -581,13 +662,63 @@ public class TestJoinOrderOptimizerStudents
 						JoinOrderOptimizerUtils.filterTwinPredicates(subPartsupp2suppPred.createSideSwitchedCopy())), 
 					subPartTable, 
 					JoinOrderOptimizerUtils.filterTwinPredicates(subPartsupp2partPred))
-		);
+				);
+		
+		verifiers.add(solution1);
+		
+		
+		TestingJoinOrderVerifyer solution2 = new TestingJoinOrderVerifyer();
+		
+		solution2.setExpectedJoinOrder(query,	
+				new AbstractJoinPlanOperator(
+					new AbstractJoinPlanOperator(
+						new AbstractJoinPlanOperator(
+							partTable, 
+							subquery, 
+							JoinOrderOptimizerUtils.filterTwinPredicates(part2subqueryPred)),
+						partSuppTable, 
+						JoinOrderOptimizerUtils.filterTwinPredicates(partsupp2partPred.createSideSwitchedCopy())),
+					new AbstractJoinPlanOperator(
+						new AbstractJoinPlanOperator(
+							nationTable, 
+							regionTable, 
+							JoinOrderOptimizerUtils.filterTwinPredicates(region2nationPred.createSideSwitchedCopy())), 
+						suppTable, 
+						JoinOrderOptimizerUtils.filterTwinPredicates(nation2suppPred)), 
+					JoinOrderOptimizerUtils.filterTwinPredicates(topJoinPred)));
+		
+		
+		AbstractJoinPlanOperator regionJnation_1 = new AbstractJoinPlanOperator(subRegionTable, subNationTable, JoinOrderOptimizerUtils.filterTwinPredicates(subRegion2nationPred));
+		AbstractJoinPlanOperator supplierJ1_2 = new AbstractJoinPlanOperator(subSuppTable, regionJnation_1, JoinOrderOptimizerUtils.filterTwinPredicates(subNation2supplierPred.createSideSwitchedCopy()));
+		
+		AbstractJoinPlanOperator partJpartsupplier_3 = new AbstractJoinPlanOperator(subPartTable, subPartSuppTable, JoinOrderOptimizerUtils.filterTwinPredicates(subPartsupp2partPred.createSideSwitchedCopy()));
+		AbstractJoinPlanOperator final3J2 = new AbstractJoinPlanOperator(partJpartsupplier_3, supplierJ1_2, JoinOrderOptimizerUtils.filterTwinPredicates(subPartsupp2suppPred));
+		
+		solution2.setExpectedJoinOrder(subquery, final3J2);
+		
+		verifiers.add(solution2);
+		
 		
 		// --------------------------------------------------------------------
 		//                       Call the optimizer code
 		// --------------------------------------------------------------------
 		
-		this.optimizer.createSelectQueryPlan(query, ver, true);
+		ArrayList<Exception> eList = new ArrayList<Exception>();
+		
+		for(JoinOrderVerifier verifier : verifiers) {
+			try {
+				this.optimizer.createSelectQueryPlan(query, verifier, true);
+			} catch(Exception e) {
+				eList.add(e);
+			}
+		}
+		
+		if(verifiers.size() == eList.size()) {
+			for(Exception e: eList) {
+				System.out.println(e.getMessage());
+			}
+			throw new OptimizerException("Your plan is not within the solutions! (See test output.)");
+		}
 	}		
 
 	private static Predicate createPredicate(String text)
@@ -629,10 +760,13 @@ public class TestJoinOrderOptimizerStudents
 				ByteArrayOutputStream baos = new ByteArrayOutputStream();
 				PrintStream ps = new PrintStream(baos);
 				LogicalPlanPrinter planPrinter = new LogicalPlanPrinter(ps, true);
+				
 				ps.println("~~~~~~~~~~~~~~~~~~~~~~~ Actual Plan ~~~~~~~~~~~~~~~~~~~~~~~");
 				planPrinter.print(pop);
+				System.out.println("actual: " + ((AbstractJoinPlanOperator)pop).toString());
 				ps.println("~~~~~~~~~~~~~~~~~~~~~~ Expected Plan ~~~~~~~~~~~~~~~~~~~~~~");
 				planPrinter.print(should);
+				System.out.println("should: " + ((AbstractJoinPlanOperator)should).toString());
 				ps.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 				ps.flush();
 				
@@ -665,9 +799,12 @@ public class TestJoinOrderOptimizerStudents
 					JoinPredicate shouldJoinPredFiltered = JoinOrderOptimizerUtils.filterTwinPredicates(shouldJoin.getJoinPredicate());
 					JoinPredicate planJoinPredFiltered = JoinOrderOptimizerUtils.filterTwinPredicates(planJoin.getJoinPredicate());
 					
-					if (!shouldJoin.getJoinPredicate().equals(planJoin.getJoinPredicate())) {
+					// get predicate in the right oder
+					planJoinPredFiltered = getRightSwitchedPredicate(planJoin.getLeftChild(),planJoin.getRightChild(),planJoinPredFiltered);
+					
+					if (!shouldJoin.getJoinPredicate().equals(planJoinPredFiltered)) {
 						System.out.println("WARNING: original predicate does not match expected predicate, maybe missing JoinOrderOptimizerUtils#filterTwinPredicates() call?");
-						System.out.println("         original predicate: " + planJoin.getJoinPredicate());
+						System.out.println("         original predicate: " + planJoinPredFiltered);
 						System.out.println("         expected predicate: " + shouldJoin.getJoinPredicate());
 					}
 					
@@ -687,7 +824,9 @@ public class TestJoinOrderOptimizerStudents
 					JoinPredicate shouldJoinPredFiltered = JoinOrderOptimizerUtils.filterTwinPredicates(shouldJoin.getJoinPredicate().createSideSwitchedCopy());
 					JoinPredicate planJoinPredFiltered = JoinOrderOptimizerUtils.filterTwinPredicates(planJoin.getJoinPredicate());
 					
-					if (!shouldJoin.getJoinPredicate().createSideSwitchedCopy().equals(planJoin.getJoinPredicate())) {
+					planJoinPredFiltered = getRightSwitchedPredicate(planJoin.getLeftChild(),planJoin.getRightChild(),planJoinPredFiltered);
+					
+					if (!shouldJoin.getJoinPredicate().createSideSwitchedCopy().equals(planJoinPredFiltered)) {
 						System.out.println("WARNING: original (switched) predicate does not match expected predicate, maybe missing JoinOrderOptimizerUtils#filterTwinPredicates() call?");
 					}
 					
