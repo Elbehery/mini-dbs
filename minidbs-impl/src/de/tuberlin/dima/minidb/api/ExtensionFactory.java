@@ -22,6 +22,7 @@ import de.tuberlin.dima.minidb.io.tables.TableResourceManager;
 import de.tuberlin.dima.minidb.optimizer.cardinality.CardinalityEstimator;
 import de.tuberlin.dima.minidb.optimizer.cost.CostEstimator;
 import de.tuberlin.dima.minidb.optimizer.generator.PhysicalPlanGenerator;
+import de.tuberlin.dima.minidb.optimizer.joins.G10JoinOrderOptimizer;
 import de.tuberlin.dima.minidb.optimizer.joins.JoinOrderOptimizer;
 import de.tuberlin.dima.minidb.parser.OutputColumn.AggregationType;
 import de.tuberlin.dima.minidb.parser.SQLParser;
@@ -195,7 +196,7 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 
 	@Override
 	public JoinOrderOptimizer createJoinOrderOptimizer(CardinalityEstimator estimator) {
-		throw new UnsupportedOperationException("Method not yet supported");
+		return new G10JoinOrderOptimizer(estimator);
 	}
 
 	@Override
