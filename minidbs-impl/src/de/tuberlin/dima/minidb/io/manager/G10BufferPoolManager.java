@@ -93,6 +93,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 	 *       reclaim the memory.</li>
 	 * </ol>
 	 */
+	@SuppressWarnings("unused")
 	@Override
 	public void closeBufferPool() {
 		
@@ -751,8 +752,6 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 		
 		PageCache cache = caches.get(pageSize);
 
-	
-		//System.out.print(page.getPageNumber());
 
 		EvictedCacheEntry evicted;
 		try {
@@ -762,15 +761,7 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 				} else {
 					evicted = cache.addPage(page, resourceId);
 				}
-				
-				
-				
-		/*		CacheableData[] pages = cache.getAllPagesForResource(resourceId);
-				
-				System.out.println("C : ");
-				for (CacheableData currentPage : pages) {
-					System.out.print(currentPage.getPageNumber() + ", ");
-				}*/
+
 			}
 			
 			
@@ -780,13 +771,6 @@ public class G10BufferPoolManager implements BufferPoolManager, FreeBufferCallba
 			
 			CacheableData evictedPage = evicted.getWrappingPage();
 			
-			int evictedNbr;
-			if(evictedPage != null)
-				evictedNbr = evictedPage.getPageNumber();
-			else
-				evictedNbr = 0;
-			
-			//System.out.print(" (" + evictedNbr + "), ");
 			
 			int evictedResourceId = evicted.getResourceID();
 			ResourceManager evictedResource = resources.get(evictedResourceId);
