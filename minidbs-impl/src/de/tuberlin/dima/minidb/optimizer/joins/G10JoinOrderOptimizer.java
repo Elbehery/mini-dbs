@@ -15,30 +15,21 @@ import de.tuberlin.dima.minidb.semantics.predicate.JoinPredicateConjunct;
 public class G10JoinOrderOptimizer implements JoinOrderOptimizer {
 
 	private CardinalityEstimator estimator;
-	
+
 
 	public G10JoinOrderOptimizer(CardinalityEstimator estimator) {
-		this.estimator = estimator;
-		
-		
+		this.estimator = estimator;	
 	}
 
 	@Override
 	public OptimizerPlanOperator findBestJoinOrder(Relation[] relations,
 			JoinGraphEdge[] joins) {
-		
+
 		/* Array containing all plans
 		 * position i contains all plans of size i relations
 		 */
 		ArrayList<G10Plan[]> plansArray = new ArrayList<G10Plan[]>();;
-		
-		
-		// Set ids for relations to simplify futur work
-		for (int i = 0; i < relations.length; i++) {
-			Relation relation = relations[i];
-			relation.setID(i);	
-		}
-		
+
 		
 		// Initializing plansArray with all plans of size 1 relations (i.e. simple table accesses)
 		G10Plan[] singleRelationPlans = new G10Plan[relations.length];
@@ -125,6 +116,8 @@ public class G10JoinOrderOptimizer implements JoinOrderOptimizer {
 								
 								estimator.estimateJoinCardinality(planOperator);
 								
+								
+								
 								planOperator.setOperatorCosts(planORight.getOutputCardinality() + planOLeft.getOutputCardinality());
 								
 								planOperator.setCumulativeCosts(planOperator.getOperatorCosts() + planOLeft.getCumulativeCosts() + planORight.getCumulativeCosts());
@@ -155,12 +148,17 @@ public class G10JoinOrderOptimizer implements JoinOrderOptimizer {
 		}
 	
 		
+		
+		
+		//printCard(plansArray.get(plansArray.size() -1)[0].getPlan(), 0);
+		
 		// Return best plan
 		
 		return plansArray.get(plansArray.size() -1)[0].getPlan();
 		
 
 	}
+	
 	
 	
 	/* Filter plans contained in the HashMap
@@ -177,12 +175,17 @@ public class G10JoinOrderOptimizer implements JoinOrderOptimizer {
 			G10Plan minPlan = planList.get(0);
 			long minCost = minPlan.getPlan().getCumulativeCosts();
 			
-			for (int i = 1; i <= planList.size(); i++) {
+			for (int i = 1; i < planList.size(); i++) {
 				G10Plan plan = planList.get(i);
-				if (plan.getPlan().getCumulativeCosts() < minCost) {
-					minCost = plan.getPlan().getCumulativeCosts();
-					minPlan = plan;
-				}
+				
+
+					if (plan.getPlan().getCumulativeCosts() < minCost) {
+						
+						
+						minCost = plan.getPlan().getCumulativeCosts();
+						minPlan = plan;
+					}
+				
 			}
 			outputPlans.add(minPlan);
 		}
@@ -190,8 +193,7 @@ public class G10JoinOrderOptimizer implements JoinOrderOptimizer {
 		return  (G10Plan[]) outputPlans.toArray(new G10Plan[outputPlans.size()]);		
 	}
 	
-	
-	
+
 	/*
 	 * Helper class to store useful information for the different plans
 	 */
