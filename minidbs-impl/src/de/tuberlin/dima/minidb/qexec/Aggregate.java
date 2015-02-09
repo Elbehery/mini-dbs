@@ -97,5 +97,27 @@ public class Aggregate {
 			return dataType.getNullValue();
 		}
 	}
+	
+	
+	public static DataType getResultingType(AggregationType aggregation, DataType type) {
+		if(aggregation == AggregationType.COUNT) {
+			return DataType.intType();
+			
+		} else if (aggregation == AggregationType.SUM) {
+			return type;
+			
+		} else if (aggregation == AggregationType.AVG) {
+
+			return DataType.floatType();
+			
+		} else if (aggregation == AggregationType.MIN) {
+			return type;
+			
+		} else if (aggregation == AggregationType.MAX) {
+			return type;
+		} else {
+			return type;
+		}
+	}
 
 }
