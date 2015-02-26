@@ -280,4 +280,13 @@ public class ExtensionFactory extends AbstractExtensionFactory {
 		}
 		return null;
 	}
+
+	@Override
+	public HadoopOperator<?,?> createHadoopGroupByOperator(DBInstance instance,
+			BulkProcessingOperator child, int[] groupColumnIndices,
+			int[] aggColumnIndices, AggregationType[] aggregateFunctions,
+			DataType[] aggColumnTypes, int[] groupColumnOutputPositions,
+			int[] aggregateColumnOutputPosition) {
+		throw new UnsupportedOperationException("Method not yet supported");
+	}
 }
